@@ -694,3 +694,105 @@ func (s *Scheduler) reconcile() {
 		log.Errorf("reconcile tasks got error: %v", err)
 	}
 }
+
+func (s *Scheduler) LaunchTasks(tasks []*Task) (int, error) {
+	candidates := s.strategy.RankAndSort(s.getAgents())
+
+	launched := 0
+	for _, cand := range candidates {
+		if launched >= len(tasks) {
+			return launched, nil
+		}
+
+		var offer *mesosproto.Offer
+		for _, ofr := range cand.getOffers() {
+			offer = ofr
+		}
+
+		cpus, mem, disk, port := cand.Resources()
+
+		taskinfos := make([]*mesosproto.TaskInfo, 0)
+
+		for {
+			t := tasks[0]
+			if cpus >= t.cfg.CPUs &&
+				mem >= t.cfg.Mem &&
+				disk >= t.cfg.Disk &&
+				port >= len(t.cfg.PortMappings) {
+
+				t.Build(offer)
+
+				appId := strings.SplitN(t.GetName(), ".", 2)[1]
+
+				task, err := s.db.GetTask(appId, t.GetTaskId().GetValue())
+				if err != nil {
+					return 0, fmt.Errorf("find task from zk got error: %v", err)
+				}
+
+				task.AgentId = t.AgentId.GetValue()
+				task.IP = t.cfg.IP
+
+				if t.cfg.Network == "host" || t.cfg.Network == "bridge" {
+					task.IP = offer.GetHostname()
+				}
+
+				task.Port = t.cfg.Port
+
+				if err := s.db.UpdateTask(appId, task); err != nil {
+					return 0, fmt.Errorf("update task status error: %v", err)
+				}
+
+				taskinfos = append(taskinfos, &t.TaskInfo)
+
+				cpus -= t.cfg.CPUs
+				mem -= t.cfg.Mem
+				disk -= t.cfg.Disk
+				port -= len(t.cfg.PortMappings)
+
+				launched++
+				tasks = tasks[launched:]
+				continue
+			}
+
+			break
+		}
+
+		s.Launch(offer, taskinfos)
+	}
+
+	return launched, nil
+}
+
+func (s *Scheduler) Launch(offer *mesosproto.Offer, tasks []*mesosproto.TaskInfo) error {
+	log.Printf("Launch tasks [%v] with offer %s", tasks, offer.GetId())
+	call := &mesosproto.Call{
+		FrameworkId: s.FrameworkId(),
+		Type:        mesosproto.Call_ACCEPT.Enum(),
+		Accept: &mesosproto.Call_Accept{
+			OfferIds: []*mesosproto.OfferID{
+				offer.GetId(),
+			},
+			Operations: []*mesosproto.Offer_Operation{
+				&mesosproto.Offer_Operation{
+					Type: mesosproto.Offer_Operation_LAUNCH.Enum(),
+					Launch: &mesosproto.Offer_Operation_Launch{
+						TaskInfos: tasks,
+					},
+				},
+			},
+			Filters: &mesosproto.Filters{RefuseSeconds: proto.Float64(1)},
+		},
+	}
+
+	// send call
+	resp, err := s.Send(call)
+	if err != nil {
+		return err
+	}
+
+	if code := resp.StatusCode; code != http.StatusAccepted {
+		return fmt.Errorf("launch call send but the status code not 202 got %d", code)
+	}
+
+	return nil
+}

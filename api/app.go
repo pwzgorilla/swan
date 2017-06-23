@@ -104,6 +104,7 @@ func (r *Router) createApp(w http.ResponseWriter, req *http.Request) {
 			}
 		}()
 
+		tasks := make([]*mesos.Task, 0)
 		for i := 0; i < count; i++ {
 			var (
 				name = fmt.Sprintf("%d.%s", i, app.ID)
@@ -143,17 +144,25 @@ func (r *Router) createApp(w http.ResponseWriter, req *http.Request) {
 				name,
 			)
 
-			if err := r.driver.LaunchTask(t); err != nil {
-				log.Errorf("launch task %s got error: %v", id, err)
+			//if err := r.driver.LaunchTask(t); err != nil {
+			//	log.Errorf("launch task %s got error: %v", id, err)
 
-				task.Status = "Failed"
-				task.ErrMsg = err.Error()
+			//	task.Status = "Failed"
+			//	task.ErrMsg = err.Error()
 
-				if err = r.db.UpdateTask(app.ID, task); err != nil {
-					log.Errorf("update task %s status got error: %v", id, err)
-				}
-			}
+			//	if err = r.db.UpdateTask(app.ID, task); err != nil {
+			//		log.Errorf("update task %s status got error: %v", id, err)
+			//	}
+			//}
+			tasks = append(tasks, t)
 		}
+
+		n, err := r.driver.LaunchTasks(tasks)
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+
+		log.Printf("Launched %d tasks.", n)
 
 		return
 	}()

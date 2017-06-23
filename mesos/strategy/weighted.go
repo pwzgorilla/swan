@@ -27,10 +27,10 @@ func weight(agents []*mesos.Agent) weightedAgents {
 	weightedList := make([]*weightedAgent, 0)
 
 	for _, agent := range agents {
-		cpus, mem, disk, ports := agent.Resources()
+		cpus, mem, disk, port := agent.Resources()
 		weighted := &weightedAgent{
 			agent:  agent,
-			weight: cpus + mem + disk + float64(len(ports)),
+			weight: cpus + mem + disk + float64(port),
 		}
 
 		weightedList = append(weightedList, weighted)

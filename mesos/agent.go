@@ -64,7 +64,7 @@ func (s *Agent) getOffers() map[string]*mesosproto.Offer {
 	return s.offers
 }
 
-func (s *Agent) Resources() (cpus, mem, disk float64, ports []uint64) {
+func (s *Agent) Resources() (cpus, mem, disk float64, port int) {
 	for _, offer := range s.getOffers() {
 		for _, resource := range offer.Resources {
 			if *resource.Name == "cpus" {
@@ -80,11 +80,13 @@ func (s *Agent) Resources() (cpus, mem, disk float64, ports []uint64) {
 			}
 
 			if *resource.Name == "ports" {
+				ports := make([]uint64, 0)
 				for _, rang := range resource.GetRanges().GetRange() {
 					for i := rang.GetBegin(); i <= rang.GetEnd(); i++ {
 						ports = append(ports, i)
 					}
 				}
+				port = len(ports)
 			}
 
 		}

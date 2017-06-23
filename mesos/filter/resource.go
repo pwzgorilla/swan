@@ -16,12 +16,12 @@ func (f *resourceFilter) Filter(config *types.TaskConfig, agents []*mesos.Agent)
 	candidates := make([]*mesos.Agent, 0)
 
 	for _, agent := range agents {
-		cpus, mem, disk, ports := agent.Resources()
+		cpus, mem, disk, port := agent.Resources()
 
 		if cpus >= config.CPUs &&
 			mem >= config.Mem &&
 			disk >= config.Disk &&
-			len(ports) >= len(config.PortMappings) {
+			port >= len(config.PortMappings) {
 			candidates = append(candidates, agent)
 		}
 	}
