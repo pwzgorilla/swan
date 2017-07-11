@@ -341,14 +341,20 @@ func (s *Scheduler) addOffer(offer *mesosproto.Offer) {
 
 	a.addOffer(f)
 
-	offers := a.getOffers()
+	var (
+		l      sync.RWMutex
+		offers = a.getOffers()
+	)
+
 	if len(offers) > 1 {
+		l.Lock()
 		fs := make([]*Offer, 0)
 		for _, f := range offers {
 			if s.removeOffer(f) {
 				fs = append(fs, f)
 			}
 		}
+		l.Unlock()
 
 		if err := s.declineOffers(fs); err != nil {
 			log.Errorf("Decline offers got error: %v", err)
