@@ -293,6 +293,7 @@ func (p *Proxy) Valid() error {
 	if l < 0 || l > 65535 {
 		return errors.New("proxy.Listen out of range")
 	}
+
 	return nil
 }
 
